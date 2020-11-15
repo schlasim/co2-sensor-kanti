@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ESP8266WiFi.h>
 #include <U8g2lib.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -93,6 +94,9 @@ void printValues();
 
 void setup()
 {
+  WiFi.mode( WIFI_OFF );
+  WiFi.forceSleepBegin();
+  delay( 1 );
   // put your setup code here, to run once:
   Serial.begin(9600);
   while (!Serial)
