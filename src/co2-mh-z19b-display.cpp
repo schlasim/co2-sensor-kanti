@@ -35,7 +35,9 @@ void toggleStatusLed(void);
 
 const int buzzerPin = D8;
 const unsigned int beepFrequency = 2000;
-const unsigned long beepDuration = 200;
+const unsigned long beepDuration = 500;
+// const int numberOfMedBeeps = 2;
+const int numberOfHighBeeps = 3;
 
 void friendlyBeep(void);
 void playTone(int _pin, unsigned int frequency, unsigned long duration);
@@ -231,7 +233,7 @@ void updateAlarm()
     if (!highAlarmHasFired)
     {
       highAlarmHasFired = true;
-      timer.setTimer(1000, friendlyBeep, 3);
+      timer.setTimer(1000, friendlyBeep, numberOfHighBeeps);
     }
     break;
   default:
