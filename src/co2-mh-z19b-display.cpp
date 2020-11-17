@@ -314,7 +314,7 @@ void readSensors()
   {
     co2Level = co2Low;
   }
-  else if ((1000 < mhzCo2) && (mhzCo2 < 1400))
+  else if ((1000 <= mhzCo2) && (mhzCo2 < 1400))
   {
     co2Level = co2Medium;
   }
