@@ -73,6 +73,10 @@ enum Co2Exposure
   co2High
 };
 Co2Exposure co2Level = co2Low;
+const int co2MediumThreshold = 800;
+const int co2HighThreshold = 1200;
+
+
 
 #define BME_SCK 13
 #define BME_MISO 12
@@ -310,11 +314,11 @@ void updateFontParameters(void)
 void readSensors()
 {
   mhzCo2 = mhz19b.readCO2();
-  if (mhzCo2 < 1000)
+  if (mhzCo2 < co2MediumThreshold)
   {
     co2Level = co2Low;
   }
-  else if ((1000 <= mhzCo2) && (mhzCo2 < 1400))
+  else if ((co2MediumThreshold <= mhzCo2) && (mhzCo2 < co2HighThreshold))
   {
     co2Level = co2Medium;
   }
