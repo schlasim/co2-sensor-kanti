@@ -8,13 +8,10 @@
 #include "Adafruit_SHT31.h"
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
-//#include <SHT31D_Universal.h>
-//SHT31_Unified sht31;
 #include <ErriezMHZ19B.h>
-#include <SoftwareSerial.h> // Use software serial
+#include <SoftwareSerial.h>
 #include <SimpleTimer.h>
 SimpleTimer timer;
-//timer.setInterval(1000, repeatMe);
 
 enum LedName
 {
@@ -135,9 +132,6 @@ void setup()
   {
     setLed(LedName(i), ledOff);
   }
-  //  u8g2.print(F(".ok"));
-  //  u8g2.sendBuffer();
-  //  newLine();
 
   u8g2.print(F("sht3x.."));
   u8g2.sendBuffer();
@@ -152,13 +146,6 @@ void setup()
   u8g2.print(F(".ok"));
   u8g2.sendBuffer();
   newLine();
-
-  //    u8g2.print(sht31.readTemperature());
-  //    u8g2.print(F(" °C"));
-  //    newLine();
-  //    u8g2.print(sht31.readHumidity());
-  //    u8g2.print(F(" %"));
-  //    newLine();
 
   u8g2.print(F("bme280.."));
   u8g2.sendBuffer();
@@ -375,26 +362,6 @@ void printValues()
   newLine();
   u8g2.sendBuffer();
 }
-
-//void readCo2() {
-//  int co2Value;
-//
-//  /* note: getCO2() default is command "CO2 Unlimited". This returns the correct CO2 reading even
-//    if below background CO2 levels or above range (useful to validate sensor). You can use the
-//    usual documented command with getCO2(false) */
-//
-//  co2Value = myMHZ19.getCO2(false);  // Request CO2 (as ppm)
-//
-//  Serial.print(F("CO2 (ppm): "));
-//  Serial.println(co2Value);
-//  Blynk.virtualWrite(V0, co2Value);
-//
-//  int8_t temperatureValue;
-//  temperatureValue = myMHZ19.getTemperature();  // Request Temperature (as Celsius)
-//  Serial.print(F("Temperature (C): "));
-//  Serial.println(temperatureValue);
-//  Blynk.virtualWrite(V1, temperatureValue);
-//}
 
 void setupMhz19b()
 {
