@@ -13,7 +13,7 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 #include <SimpleTimer.h>
 SimpleTimer timer;
 
-const char firmwareVersion[] = "v0.1";
+const char firmwareVersion[] = "v0.1.0";
 
 enum LedName
 {
