@@ -13,6 +13,8 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 #include <SimpleTimer.h>
 SimpleTimer timer;
 
+const char firmwareVersion[] = "v0.1";
+
 enum LedName
 {
   green,
@@ -31,9 +33,10 @@ void updateLeds(void);
 void toggleStatusLed(void);
 
 const int buzzerPin = D8;
-const unsigned int beepFrequency = 2000;
+const unsigned int beepFrequency = 1000;
 const unsigned long beepDuration = 500;
-// const int numberOfMedBeeps = 2;
+const int numberOfMediumLowBeeps = 1;
+const int numberOfMediumHighBeeps = 2;
 const int numberOfHighBeeps = 3;
 
 void friendlyBeep(void);
@@ -66,14 +69,14 @@ void printErrorCode(int16_t result);
 enum Co2Exposure
 {
   co2Low,
-  co2Medium,
+  co2MediumLow,
+  co2MediumHigh,
   co2High
 };
 Co2Exposure co2Level = co2Low;
-const int co2MediumThreshold = 800;
+const int co2MediumLowThreshold = 800;
+const int co2MediumHighThreshold = 1000;
 const int co2HighThreshold = 1200;
-
-
 
 #define BME_SCK 13
 #define BME_MISO 12
@@ -97,9 +100,16 @@ void printValues();
 
 void setup()
 {
-  WiFi.mode( WIFI_OFF );
+
+  pinMode(buzzerPin, OUTPUT);
+  analogWriteFreq(beepFrequency);
+  analogWrite(buzzerPin, 512);
+  delay(50);
+  analogWrite(buzzerPin, LOW);
+
+  WiFi.mode(WIFI_OFF);
   WiFi.forceSleepBegin();
-  delay( 1 );
+  delay(1);
   // put your setup code here, to run once:
   Serial.begin(9600);
   while (!Serial)
@@ -114,11 +124,10 @@ void setup()
   updateFontParameters();
   y = ascent;
   u8g2.setCursor(0, y);
-  u8g2.print(F("setup"));
+  u8g2.print(F("setup       "));
+  u8g2.print(firmwareVersion);
   u8g2.sendBuffer();
   newLine();
-
-  pinMode(buzzerPin, OUTPUT);
 
   //  u8g2.print(F("leds.."));
   //  u8g2.sendBuffer();
@@ -204,20 +213,31 @@ void printDot(void)
 
 void updateAlarm()
 {
-  static bool mediumAlarmHasFired = false;
+  static bool mediumLowAlarmHasFired = false;
+  static bool mediumHighAlarmHasFired = false;
   static bool highAlarmHasFired = false;
   switch (co2Level)
   {
   case co2Low:
-    mediumAlarmHasFired = false;
+    mediumLowAlarmHasFired = false;
+    mediumHighAlarmHasFired = false;
     highAlarmHasFired = false;
     break;
-  case co2Medium:
-    if (!mediumAlarmHasFired)
+  case co2MediumLow:
+    if (!mediumLowAlarmHasFired)
     {
+      mediumLowAlarmHasFired = true;
+      mediumHighAlarmHasFired = false;
       highAlarmHasFired = false;
-      mediumAlarmHasFired = true;
-      friendlyBeep();
+      timer.setTimer(1000, friendlyBeep, numberOfMediumLowBeeps);
+    }
+    break;
+  case co2MediumHigh:
+    if (!mediumHighAlarmHasFired)
+    {
+      mediumHighAlarmHasFired = true;
+      highAlarmHasFired = false;
+      timer.setTimer(1000, friendlyBeep, numberOfMediumHighBeeps);
     }
     break;
   case co2High:
@@ -244,7 +264,12 @@ void updateLeds(void)
     setLed(yellow, ledOff);
     setLed(red, ledOff);
     break;
-  case co2Medium:
+  case co2MediumLow:
+    setLed(green, ledOff);
+    setLed(yellow, ledOn);
+    setLed(red, ledOff);
+    break;
+  case co2MediumHigh:
     setLed(green, ledOff);
     setLed(yellow, ledOn);
     setLed(red, ledOff);
@@ -301,13 +326,17 @@ void updateFontParameters(void)
 void readSensors()
 {
   mhzCo2 = mhz19b.readCO2();
-  if (mhzCo2 < co2MediumThreshold)
+  if (mhzCo2 < co2MediumLowThreshold)
   {
     co2Level = co2Low;
   }
-  else if ((co2MediumThreshold <= mhzCo2) && (mhzCo2 < co2HighThreshold))
+  else if ((co2MediumLowThreshold <= mhzCo2) && (mhzCo2 < co2MediumHighThreshold))
   {
-    co2Level = co2Medium;
+    co2Level = co2MediumLow;
+  }
+  else if ((co2MediumHighThreshold <= mhzCo2) && (mhzCo2 < co2HighThreshold))
+  {
+    co2Level = co2MediumHigh;
   }
   else
   {
