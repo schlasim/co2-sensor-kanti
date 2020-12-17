@@ -13,7 +13,7 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 #include <SimpleTimer.h>
 SimpleTimer timer;
 
-const char firmwareVersion[] = "v0.1.0";
+const char firmwareVersion[] = "v0.1.1";
 
 enum LedName
 {
@@ -124,8 +124,10 @@ void setup()
   updateFontParameters();
   y = ascent;
   u8g2.setCursor(0, y);
-  u8g2.print(F("setup       "));
+  u8g2.print(F("setup     "));
   u8g2.print(firmwareVersion);
+  y=y+1;
+  u8g2.drawHLine(0,y,64);
   u8g2.sendBuffer();
   newLine();
 
@@ -397,7 +399,6 @@ void setupMhz19b()
   char firmwareVersion[5];
 
   // Initialize serial port to print diagnostics and CO2 output
-  Serial.begin(115200);
   Serial.println(F("\nErriez MH-Z19B CO2 Sensor example"));
 
   // Initialize senor software serial at fixed 9600 baudrate
@@ -429,41 +430,59 @@ void setupMhz19b()
   setLed(yellow, ledOff);
   timer.deleteTimer(0);
   timer.deleteTimer(1);
+  u8g2.print(F(".ok"));
+  u8g2.sendBuffer();
+
+  delay(2000);
+
+  u8g2.clearBuffer();
+  y=ascent;
+  u8g2.setCursor(0,y);
+  u8g2.print(F("mh-z19b info"));
+  y=y+1;
+  u8g2.drawHLine(0,y,64);
+  newLine();
+  u8g2.sendBuffer();  
 
   // Optional: Print firmware version
   Serial.print(F("  Firmware: "));
   mhz19b.getVersion(firmwareVersion, sizeof(firmwareVersion));
   Serial.println(firmwareVersion);
-
+  u8g2.print(F("firmware: "));
+  u8g2.print(firmwareVersion);
+  newLine();
+  u8g2.sendBuffer();
   // Optional: Set CO2 range 2000ppm or 5000ppm (default) once
   // Serial.print(F("Set range..."));
-  // mhz19b.setRange2000ppm();
+  mhz19b.setRange2000ppm();
   // mhz19b.setRange5000ppm();
 
   // Optional: Print operating range
+  int range = mhz19b.getRange();
   Serial.print(F("  Range: "));
-  Serial.print(mhz19b.getRange());
+  Serial.print(range);
   Serial.println(F("ppm"));
+  u8g2.print(F("range: "));
+  u8g2.print(range);
+  u8g2.print(F(" ppm"));
+  newLine();
+  u8g2.sendBuffer();
 
   // Optional: Set automatic calibration on (true) or off (false) once
   // Serial.print(F("Set auto calibrate..."));
-  // mhz19b.setAutoCalibration(true);
+  mhz19b.setAutoCalibration(true);
 
   // Optional: Print Automatic Baseline Calibration status
+  int8_t autoCalibration = mhz19b.getAutoCalibration();
   Serial.print(F("  Auto calibrate: "));
-  Serial.println(mhz19b.getAutoCalibration() ? F("On") : F("Off"));
-  // OLD CODE:
-  //  Serial.println(F("@MH: opening serial"));
-  //  mySerial.begin(BAUDRATE);                               // (Uno example) device to MH-Z19 serial start
-  //  //mySerial.begin(BAUDRATE, SERIAL_8N1, RX_PIN, TX_PIN); // (ESP32 Example) device to MH-Z19 serial start
-  //  Serial.println(F("@MH: starting sensor"));
-  //  myMHZ19.begin(mySerial);                                // *Serial(Stream) refence must be passed to library begin().
-  //  Serial.println(F("@MH: turning off auto calibration"));
-  //  myMHZ19.autoCalibration(false);                              // Turn auto calibration ON (OFF autoCalibration(false))
-
-  u8g2.print(F(".ok"));
-  u8g2.sendBuffer();
+  Serial.println(autoCalibration ? F("on") : F("off"));
+  u8g2.print(F("auto cal: "));
+  u8g2.print(autoCalibration ? F("on") : F("off"));
   newLine();
+  u8g2.sendBuffer();
+ 
+  delay(10000);
+
 }
 
 void printErrorCode(int16_t result)
