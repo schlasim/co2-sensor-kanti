@@ -13,7 +13,7 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 #include <SimpleTimer.h>
 SimpleTimer timer;
 
-const char firmwareVersion[] = "v0.1.1";
+const char firmwareVersion[] = "v0.1.2";
 
 enum LedName
 {
@@ -35,7 +35,7 @@ void toggleStatusLed(void);
 const int buzzerPin = D8;
 const unsigned int beepFrequency = 1000;
 const unsigned long beepDuration = 500;
-const int numberOfMediumLowBeeps = 1;
+const int numberOfMediumLowBeeps = 0;
 const int numberOfMediumHighBeeps = 2;
 const int numberOfHighBeeps = 3;
 
@@ -126,8 +126,8 @@ void setup()
   u8g2.setCursor(0, y);
   u8g2.print(F("setup     "));
   u8g2.print(firmwareVersion);
-  y=y+1;
-  u8g2.drawHLine(0,y,64);
+  y = y + 1;
+  u8g2.drawHLine(0, y, 64);
   u8g2.sendBuffer();
   newLine();
 
@@ -231,7 +231,10 @@ void updateAlarm()
       mediumLowAlarmHasFired = true;
       mediumHighAlarmHasFired = false;
       highAlarmHasFired = false;
-      timer.setTimer(1000, friendlyBeep, numberOfMediumLowBeeps);
+      if (numberOfMediumLowBeeps > 0)
+      {
+        timer.setTimer(1000, friendlyBeep, numberOfMediumLowBeeps);
+      }
     }
     break;
   case co2MediumHigh:
@@ -239,14 +242,20 @@ void updateAlarm()
     {
       mediumHighAlarmHasFired = true;
       highAlarmHasFired = false;
-      timer.setTimer(1000, friendlyBeep, numberOfMediumHighBeeps);
+      if (numberOfMediumHighBeeps > 0)
+      {
+        timer.setTimer(1000, friendlyBeep, numberOfMediumHighBeeps);
+      }
     }
     break;
   case co2High:
     if (!highAlarmHasFired)
     {
       highAlarmHasFired = true;
-      timer.setTimer(1000, friendlyBeep, numberOfHighBeeps);
+      if (numberOfHighBeeps > 0)
+      {
+        timer.setTimer(1000, friendlyBeep, numberOfHighBeeps);
+      }
     }
     break;
   default:
@@ -436,13 +445,13 @@ void setupMhz19b()
   delay(2000);
 
   u8g2.clearBuffer();
-  y=ascent;
-  u8g2.setCursor(0,y);
+  y = ascent;
+  u8g2.setCursor(0, y);
   u8g2.print(F("mh-z19b info"));
-  y=y+1;
-  u8g2.drawHLine(0,y,64);
+  y = y + 1;
+  u8g2.drawHLine(0, y, 64);
   newLine();
-  u8g2.sendBuffer();  
+  u8g2.sendBuffer();
 
   // Optional: Print firmware version
   Serial.print(F("  Firmware: "));
@@ -480,9 +489,8 @@ void setupMhz19b()
   u8g2.print(autoCalibration ? F("on") : F("off"));
   newLine();
   u8g2.sendBuffer();
- 
-  delay(10000);
 
+  delay(10000);
 }
 
 void printErrorCode(int16_t result)
