@@ -10,10 +10,15 @@ Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
 #include <ErriezMHZ19B.h>
 #include <SoftwareSerial.h>
-#include <SimpleTimer.h>
-SimpleTimer timer;
+#include <Ticker.h>
+Ticker ledTicker;
+Ticker printValuesTicker;
+Ticker readSensorsTicker;
+Ticker beepTicker;
+Ticker stopToneTicker;
+Ticker printDotTicker;
 
-const char firmwareVersion[] = "v0.1.2";
+const char firmwareVersion[] = "v0.1.3";
 
 enum LedName
 {
@@ -31,6 +36,7 @@ const int ledPin[numberOfLeds]{D3, D4, D5};
 void setLed(LedName name, LedState state);
 void updateLeds(void);
 void toggleStatusLed(void);
+void toggleErrorLed(void);
 
 const int buzzerPin = D8;
 const unsigned int beepFrequency = 1000;
@@ -40,6 +46,7 @@ const int numberOfMediumHighBeeps = 2;
 const int numberOfHighBeeps = 3;
 
 void friendlyBeep(void);
+void friendlyBeep(int repetitions);
 void playTone(int _pin, unsigned int frequency, unsigned long duration);
 void stopTone(void);
 
@@ -95,30 +102,51 @@ float shtHum = 0.0;
 
 int mhzCo2 = 0;
 
-void readSensors();
-void printValues();
+void readSensors(void);
+void readSensorsCallback(void);
+bool readSensorsFlag = false;
+
+void printValues(void);
+void printValuesCallback(void);
+bool printValuesFlag = false;
 
 void setup()
 {
+  // enable leds
+  for (int i = 0; i < numberOfLeds; ++i)
+  {
+    pinMode(ledPin[i], OUTPUT);
+    setLed(LedName(i), ledOn);
+  }
+  delay(2000);
+  for (int i = 0; i < numberOfLeds; ++i)
+  {
+    setLed(LedName(i), ledOff);
+  }
 
+  // start blinking status led
+  ledTicker.attach(1, toggleStatusLed);
+
+  // test buzzer
   pinMode(buzzerPin, OUTPUT);
   analogWriteFreq(beepFrequency);
   analogWrite(buzzerPin, 512);
   delay(50);
   analogWrite(buzzerPin, LOW);
 
+  // disable wifi
   WiFi.mode(WIFI_OFF);
   WiFi.forceSleepBegin();
   delay(1);
-  // put your setup code here, to run once:
+
+  // setup serial
   Serial.begin(9600);
   while (!Serial)
     ; // time to get serial running
 
+  // setup display
   u8g2.begin();
   u8g2.enableUTF8Print(); // enable UTF8 support for the Arduino print() function
-
-  // Clear the buffer.
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_tom_thumb_4x6_tf); // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
   updateFontParameters();
@@ -131,19 +159,6 @@ void setup()
   u8g2.sendBuffer();
   newLine();
 
-  //  u8g2.print(F("leds.."));
-  //  u8g2.sendBuffer();
-  for (int i = 0; i < numberOfLeds; ++i)
-  {
-    pinMode(ledPin[i], OUTPUT);
-    setLed(LedName(i), ledOn);
-  }
-  delay(2000);
-  for (int i = 0; i < numberOfLeds; ++i)
-  {
-    setLed(LedName(i), ledOff);
-  }
-
   u8g2.print(F("sht3x.."));
   u8g2.sendBuffer();
   if (!sht31.begin(0x44))
@@ -151,8 +166,9 @@ void setup()
     u8g2.print(F("ERROR!"));
     u8g2.sendBuffer();
     newLine();
+    ledTicker.attach_ms(50, toggleErrorLed);
     while (1)
-      delay(10000);
+      delay(100);
   }
   u8g2.print(F(".ok"));
   u8g2.sendBuffer();
@@ -173,8 +189,9 @@ void setup()
     u8g2.print(F("ERROR!"));
     u8g2.sendBuffer();
     newLine();
+    ledTicker.attach_ms(50, toggleErrorLed);
     while (1)
-      delay(10000);
+      delay(100);
   }
   u8g2.print(F(".ok"));
   u8g2.sendBuffer();
@@ -184,26 +201,33 @@ void setup()
 
   delay(2000);
 
-  pinMode(D8, OUTPUT);
-
-  timer.setInterval(2000L, printValues);
-  timer.setInterval(5000L, readSensors);
+  printValuesTicker.attach(2, printValuesCallback);
+  readSensorsTicker.attach(5, readSensorsCallback);
+  readSensorsFlag = true;
+  printValuesFlag = true;
   readSensors();
   printValues();
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
-  timer.run();
+  readSensors();
   updateLeds();
   updateAlarm();
+  printValues();
 }
 
 void toggleStatusLed(void)
 {
   static bool state = true;
   digitalWrite(ledPin[yellow], state);
+  state = !state;
+}
+
+void toggleErrorLed(void)
+{
+  static bool state = true;
+  digitalWrite(ledPin[red], state);
   state = !state;
 }
 
@@ -233,7 +257,7 @@ void updateAlarm()
       highAlarmHasFired = false;
       if (numberOfMediumLowBeeps > 0)
       {
-        timer.setTimer(1000, friendlyBeep, numberOfMediumLowBeeps);
+        beepTicker.attach(1, friendlyBeep, (int)numberOfMediumLowBeeps);
       }
     }
     break;
@@ -244,7 +268,7 @@ void updateAlarm()
       highAlarmHasFired = false;
       if (numberOfMediumHighBeeps > 0)
       {
-        timer.setTimer(1000, friendlyBeep, numberOfMediumHighBeeps);
+        beepTicker.attach(1, friendlyBeep, (int)numberOfMediumHighBeeps);
       }
     }
     break;
@@ -254,7 +278,7 @@ void updateAlarm()
       highAlarmHasFired = true;
       if (numberOfHighBeeps > 0)
       {
-        timer.setTimer(1000, friendlyBeep, numberOfHighBeeps);
+        beepTicker.attach(1, friendlyBeep, (int)numberOfHighBeeps);
       }
     }
     break;
@@ -303,6 +327,21 @@ void setLed(LedName name, LedState state)
   digitalWrite(ledPin[name], state);
 }
 
+void friendlyBeep(int repetitions)
+{
+  static int cnt = 0;
+  if (repetitions - cnt > 0)
+  {
+    playTone(buzzerPin, beepFrequency, beepDuration);
+    ++cnt;
+  }
+  else
+  {
+    beepTicker.detach();
+    cnt = 0;
+  }
+}
+
 void friendlyBeep(void)
 {
   playTone(buzzerPin, beepFrequency, beepDuration);
@@ -313,7 +352,7 @@ void playTone(int _pin, unsigned int frequency, unsigned long duration)
   pinMode(_pin, OUTPUT);
   analogWriteFreq(frequency);
   analogWrite(_pin, 512);
-  timer.setTimeout(duration, stopTone);
+  stopToneTicker.once_ms(duration, stopTone);
 }
 
 void stopTone(void)
@@ -336,71 +375,90 @@ void updateFontParameters(void)
 
 void readSensors()
 {
-  mhzCo2 = mhz19b.readCO2();
-  if (mhzCo2 < co2MediumLowThreshold)
+  if (readSensorsFlag)
   {
-    co2Level = co2Low;
-  }
-  else if ((co2MediumLowThreshold <= mhzCo2) && (mhzCo2 < co2MediumHighThreshold))
-  {
-    co2Level = co2MediumLow;
-  }
-  else if ((co2MediumHighThreshold <= mhzCo2) && (mhzCo2 < co2HighThreshold))
-  {
-    co2Level = co2MediumHigh;
-  }
-  else
-  {
-    co2Level = co2High;
-  }
+    mhzCo2 = mhz19b.readCO2();
+    // mhzCo2 = mhzCo2 + 100; // for debugging
+    if (mhzCo2 < co2MediumLowThreshold)
+    {
+      co2Level = co2Low;
+    }
+    else if ((co2MediumLowThreshold <= mhzCo2) && (mhzCo2 < co2MediumHighThreshold))
+    {
+      co2Level = co2MediumLow;
+    }
+    else if ((co2MediumHighThreshold <= mhzCo2) && (mhzCo2 < co2HighThreshold))
+    {
+      co2Level = co2MediumHigh;
+    }
+    else
+    {
+      co2Level = co2High;
+    }
 
-  bmePress = bme.readPressure() / 100.0F;
-  bmeAlt = bme.readAltitude(SEALEVELPRESSURE_HPA);
-  bmeTemp = bme.readTemperature();
-  bmeHum = bme.readHumidity();
+    bmePress = bme.readPressure() / 100.0F;
+    bmeAlt = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    bmeTemp = bme.readTemperature();
+    bmeHum = bme.readHumidity();
 
-  shtTemp = sht31.readTemperature();
-  shtHum = sht31.readHumidity();
+    shtTemp = sht31.readTemperature();
+    shtHum = sht31.readHumidity();
+    readSensorsFlag = false;
+  }
+}
+
+void readSensorsCallback(void)
+{
+  readSensorsFlag = true;
 }
 
 void printValues()
 {
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_helvB14_tf); // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
-  updateFontParameters();
-  y = ascent;
-  u8g2.setCursor(0, y);
-  if (mhzCo2 < 1000)
+  if (printValuesFlag)
   {
-    u8g2.print(F(" "));
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_helvB14_tf); // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+    updateFontParameters();
+    y = ascent;
+    u8g2.setCursor(0, y);
+    if (mhzCo2 < 1000)
+    {
+      u8g2.print(F(" "));
+    }
+    u8g2.print(mhzCo2);
+    u8g2.setFont(u8g2_font_tom_thumb_4x6_tf); // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+    updateFontParameters();
+    u8g2.print(" ppm");
+    y = 25;
+    u8g2.setCursor(0, y);
+
+    u8g2.print(bmeTemp, 1);
+    u8g2.print(F(" °C  "));
+    u8g2.print(shtTemp, 1);
+    u8g2.print(F(" °C"));
+    newLine();
+
+    u8g2.print(bmeHum, 1);
+    u8g2.print(F(" %   "));
+    u8g2.print(shtHum, 1);
+    u8g2.print(F(" %"));
+    newLine();
+
+    u8g2.print(bmePress, 1);
+    u8g2.print(F(" hPa"));
+    newLine();
+
+    u8g2.print(bmeAlt, 1);
+    u8g2.print(F(" m"));
+    newLine();
+    u8g2.sendBuffer();
+    printValuesFlag = false;
   }
-  u8g2.print(mhzCo2);
-  u8g2.setFont(u8g2_font_tom_thumb_4x6_tf); // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
-  updateFontParameters();
-  u8g2.print(" ppm");
-  y = 25;
-  u8g2.setCursor(0, y);
+}
 
-  u8g2.print(bmeTemp, 1);
-  u8g2.print(F(" °C  "));
-  u8g2.print(shtTemp, 1);
-  u8g2.print(F(" °C"));
-  newLine();
-
-  u8g2.print(bmeHum, 1);
-  u8g2.print(F(" %   "));
-  u8g2.print(shtHum, 1);
-  u8g2.print(F(" %"));
-  newLine();
-
-  u8g2.print(bmePress, 1);
-  u8g2.print(F(" hPa"));
-  newLine();
-
-  u8g2.print(bmeAlt, 1);
-  u8g2.print(F(" m"));
-  newLine();
-  u8g2.sendBuffer();
+void printValuesCallback(void)
+{
+  printValuesFlag = true;
 }
 
 void setupMhz19b()
@@ -427,18 +485,16 @@ void setupMhz19b()
   u8g2.print(F("warming up.."));
   newLine();
   u8g2.sendBuffer();
-  timer.setInterval(1000, toggleStatusLed);
-  timer.setInterval(15000, printDot);
+  printDotTicker.attach(15, printDot);
   setLed(yellow, ledOn);
   printDot();
   while (mhz19b.isWarmingUp())
   {
-    timer.run();
-    delay(1);
+    delay(100);
   };
   setLed(yellow, ledOff);
-  timer.deleteTimer(0);
-  timer.deleteTimer(1);
+  ledTicker.detach();
+  printDotTicker.detach();
   u8g2.print(F(".ok"));
   u8g2.sendBuffer();
 
@@ -490,7 +546,7 @@ void setupMhz19b()
   newLine();
   u8g2.sendBuffer();
 
-  delay(10000);
+  delay(2000);
 }
 
 void printErrorCode(int16_t result)
