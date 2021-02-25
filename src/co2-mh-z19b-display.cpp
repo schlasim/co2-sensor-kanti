@@ -18,7 +18,11 @@ Ticker beepTicker;
 Ticker stopToneTicker;
 Ticker printDotTicker;
 
-const char firmwareVersion[] = "v0.1.3";
+const char firmwareVersion[] = "v0.1.4";
+// TODO: evaluate to move BME280 setup and sht3x setup to individual functions
+
+const bool bmeActive = true;
+const bool shtActive = true;
 
 enum LedName
 {
@@ -159,43 +163,48 @@ void setup()
   u8g2.sendBuffer();
   newLine();
 
-  u8g2.print(F("sht3x.."));
-  u8g2.sendBuffer();
-  if (!sht31.begin(0x44))
+  if (shtActive)
   {
-    u8g2.print(F("ERROR!"));
+    u8g2.print(F("sht3x.."));
+    u8g2.sendBuffer();
+    if (!sht31.begin(0x44))
+    {
+      u8g2.print(F("ERROR!"));
+      u8g2.sendBuffer();
+      newLine();
+      ledTicker.attach_ms(50, toggleErrorLed);
+      while (1)
+        delay(100);
+    }
+    u8g2.print(F(".ok"));
     u8g2.sendBuffer();
     newLine();
-    ledTicker.attach_ms(50, toggleErrorLed);
-    while (1)
-      delay(100);
   }
-  u8g2.print(F(".ok"));
-  u8g2.sendBuffer();
-  newLine();
-
-  u8g2.print(F("bme280.."));
-  u8g2.sendBuffer();
-  delay(1000);
-
-  unsigned status;
-
-  // default settings
-  status = bme.begin(0x76);
-  // You can also pass in a Wire library object like &Wire2
-  // status = bme.begin(0x76, &Wire2)
-  if (!status)
+  if (bmeActive)
   {
-    u8g2.print(F("ERROR!"));
+    u8g2.print(F("bme280.."));
+    u8g2.sendBuffer();
+    delay(1000);
+
+    unsigned status;
+
+    // default settings
+    status = bme.begin(0x76);
+    // You can also pass in a Wire library object like &Wire2
+    // status = bme.begin(0x76, &Wire2)
+    if (!status)
+    {
+      u8g2.print(F("ERROR!"));
+      u8g2.sendBuffer();
+      newLine();
+      ledTicker.attach_ms(50, toggleErrorLed);
+      while (1)
+        delay(100);
+    }
+    u8g2.print(F(".ok"));
     u8g2.sendBuffer();
     newLine();
-    ledTicker.attach_ms(50, toggleErrorLed);
-    while (1)
-      delay(100);
   }
-  u8g2.print(F(".ok"));
-  u8g2.sendBuffer();
-  newLine();
 
   setupMhz19b();
 
@@ -396,13 +405,20 @@ void readSensors()
       co2Level = co2High;
     }
 
-    bmePress = bme.readPressure() / 100.0F;
-    bmeAlt = bme.readAltitude(SEALEVELPRESSURE_HPA);
-    bmeTemp = bme.readTemperature();
-    bmeHum = bme.readHumidity();
+    if (bmeActive)
+    {
+      bmePress = bme.readPressure() / 100.0F;
+      bmeAlt = bme.readAltitude(SEALEVELPRESSURE_HPA);
+      bmeTemp = bme.readTemperature();
+      bmeHum = bme.readHumidity();
+    }
 
-    shtTemp = sht31.readTemperature();
-    shtHum = sht31.readHumidity();
+    if (shtActive)
+    {
+      shtTemp = sht31.readTemperature();
+      shtHum = sht31.readHumidity();
+    }
+
     readSensorsFlag = false;
   }
 }
