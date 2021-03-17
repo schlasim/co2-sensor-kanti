@@ -7,6 +7,8 @@
 #include <Adafruit_BME280.h>
 #include "Adafruit_SHT31.h"
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
+#include "Adafruit_SHTC3.h"
+Adafruit_SHTC3 shtc3 = Adafruit_SHTC3();
 
 #include <ErriezMHZ19B.h>
 #include <SoftwareSerial.h>
@@ -18,11 +20,12 @@ Ticker beepTicker;
 Ticker stopToneTicker;
 Ticker printDotTicker;
 
-const char firmwareVersion[] = "v0.1.4";
+const char firmwareVersion[] = "v0.1.5";
 // TODO: evaluate to move BME280 setup and sht3x setup to individual functions
 
 const bool bmeActive = true;
-const bool shtActive = true;
+const bool sht3Active = true;
+const bool shtc3Active = false;
 
 enum LedName
 {
@@ -163,7 +166,7 @@ void setup()
   u8g2.sendBuffer();
   newLine();
 
-  if (shtActive)
+  if (sht3Active)
   {
     u8g2.print(F("sht3x.."));
     u8g2.sendBuffer();
@@ -180,6 +183,25 @@ void setup()
     u8g2.sendBuffer();
     newLine();
   }
+
+    if (shtc3Active)
+  {
+    u8g2.print(F("shtc3.."));
+    u8g2.sendBuffer();
+    if (!shtc3.begin())
+    {
+      u8g2.print(F("ERROR!"));
+      u8g2.sendBuffer();
+      newLine();
+      ledTicker.attach_ms(50, toggleErrorLed);
+      while (1)
+        delay(100);
+    }
+    u8g2.print(F(".ok"));
+    u8g2.sendBuffer();
+    newLine();
+  }
+
   if (bmeActive)
   {
     u8g2.print(F("bme280.."));
@@ -413,10 +435,17 @@ void readSensors()
       bmeHum = bme.readHumidity();
     }
 
-    if (shtActive)
+    if (sht3Active)
     {
       shtTemp = sht31.readTemperature();
       shtHum = sht31.readHumidity();
+    }
+
+    if (shtc3Active){
+      sensors_event_t humidity, temp;
+      shtc3.getEvent(&humidity, &temp);
+      shtTemp = temp.temperature;
+      shtHum = humidity.relative_humidity;
     }
 
     readSensorsFlag = false;
