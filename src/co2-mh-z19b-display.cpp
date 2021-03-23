@@ -20,12 +20,13 @@ Ticker beepTicker;
 Ticker stopToneTicker;
 Ticker printDotTicker;
 
-const char firmwareVersion[] = "v0.1.5";
-// TODO: evaluate to move BME280 setup and sht3x setup to individual functions
+const char firmwareVersion[] = "v0.1.6";
+// TODO: 1) move BME280 setup and sht3x setup to individual functions
+//       2) implement faster setup and shorter read-intervalls for mh-z19c
 
-const bool bmeActive = true;
-const bool sht3Active = true;
-const bool shtc3Active = false;
+const bool bmeActive = false;
+const bool sht3Active = false;
+const bool shtc3Active = true;
 
 enum LedName
 {
@@ -73,11 +74,11 @@ enum alarmState
 alarmState alarm = alarmOff;
 void updateAlarm(void);
 
-#define MHZ19B_TX_PIN D6
-#define MHZ19B_RX_PIN D7
-SoftwareSerial mhzSerial(MHZ19B_TX_PIN, MHZ19B_RX_PIN);
-ErriezMHZ19B mhz19b(&mhzSerial);
-void setupMhz19b(void);
+#define MHZ19X_TX_PIN D6
+#define MHZ19X_RX_PIN D7
+SoftwareSerial mhzSerial(MHZ19X_TX_PIN, MHZ19X_RX_PIN);
+ErriezMHZ19B mhz19x(&mhzSerial);
+void setupMhz19x(void);
 void printDot(void);
 void printErrorCode(int16_t result);
 enum Co2Exposure
@@ -168,7 +169,7 @@ void setup()
 
   if (sht3Active)
   {
-    u8g2.print(F("sht3x.."));
+    u8g2.print(F("sht3x"));
     u8g2.sendBuffer();
     if (!sht31.begin(0x44))
     {
@@ -179,14 +180,14 @@ void setup()
       while (1)
         delay(100);
     }
-    u8g2.print(F(".ok"));
+    u8g2.print(F("...ok"));
     u8g2.sendBuffer();
     newLine();
   }
 
-    if (shtc3Active)
+  if (shtc3Active)
   {
-    u8g2.print(F("shtc3.."));
+    u8g2.print(F("shtc3"));
     u8g2.sendBuffer();
     if (!shtc3.begin())
     {
@@ -197,14 +198,14 @@ void setup()
       while (1)
         delay(100);
     }
-    u8g2.print(F(".ok"));
+    u8g2.print(F("...ok"));
     u8g2.sendBuffer();
     newLine();
   }
 
   if (bmeActive)
   {
-    u8g2.print(F("bme280.."));
+    u8g2.print(F("bme280"));
     u8g2.sendBuffer();
     delay(1000);
 
@@ -223,12 +224,12 @@ void setup()
       while (1)
         delay(100);
     }
-    u8g2.print(F(".ok"));
+    u8g2.print(F("...ok"));
     u8g2.sendBuffer();
     newLine();
   }
 
-  setupMhz19b();
+  setupMhz19x();
 
   delay(2000);
 
@@ -408,7 +409,7 @@ void readSensors()
 {
   if (readSensorsFlag)
   {
-    mhzCo2 = mhz19b.readCO2();
+    mhzCo2 = mhz19x.readCO2();
     // mhzCo2 = mhzCo2 + 100; // for debugging
     if (mhzCo2 < co2MediumLowThreshold)
     {
@@ -441,7 +442,8 @@ void readSensors()
       shtHum = sht31.readHumidity();
     }
 
-    if (shtc3Active){
+    if (shtc3Active)
+    {
       sensors_event_t humidity, temp;
       shtc3.getEvent(&humidity, &temp);
       shtTemp = temp.temperature;
@@ -506,49 +508,33 @@ void printValuesCallback(void)
   printValuesFlag = true;
 }
 
-void setupMhz19b()
+void setupMhz19x()
 {
   char firmwareVersion[5];
 
   // Initialize serial port to print diagnostics and CO2 output
-  Serial.println(F("\nErriez MH-Z19B CO2 Sensor example"));
+  Serial.println(F("\nErriez MH-Z19X CO2 Sensor example"));
 
   // Initialize senor software serial at fixed 9600 baudrate
   mhzSerial.begin(9600);
 
-  // Optional: Detect MH-Z19B sensor (check wiring / power)
-  u8g2.print(F("mh-z19b"));
-  newLine();
+  // Optional: Detect MH-Z19X sensor (check wiring / power)
+  u8g2.print(F("mh-z19x"));
   u8g2.sendBuffer();
-  while (!mhz19b.detect())
+  while (!mhz19x.detect())
   {
-    Serial.println(F("Detecting MH-Z19B sensor..."));
+    Serial.println(F("Detecting MH-Z19X sensor..."));
     delay(2000);
   };
-
-  // Sensor requires 3 minutes warming-up after power-on
-  u8g2.print(F("warming up.."));
+  u8g2.print(F("...ok"));
   newLine();
   u8g2.sendBuffer();
-  printDotTicker.attach(15, printDot);
-  setLed(yellow, ledOn);
-  printDot();
-  while (mhz19b.isWarmingUp())
-  {
-    delay(100);
-  };
-  setLed(yellow, ledOff);
-  ledTicker.detach();
-  printDotTicker.detach();
-  u8g2.print(F(".ok"));
-  u8g2.sendBuffer();
-
-  delay(2000);
+  delay(3000);
 
   u8g2.clearBuffer();
   y = ascent;
   u8g2.setCursor(0, y);
-  u8g2.print(F("mh-z19b info"));
+  u8g2.print(F("mh-z19x info"));
   y = y + 1;
   u8g2.drawHLine(0, y, 64);
   newLine();
@@ -556,19 +542,21 @@ void setupMhz19b()
 
   // Optional: Print firmware version
   Serial.print(F("  Firmware: "));
-  mhz19b.getVersion(firmwareVersion, sizeof(firmwareVersion));
-  Serial.println(firmwareVersion);
+  mhz19x.getVersion(firmwareVersion, sizeof(firmwareVersion));
+  int firmwareVersionInteger = atoi(firmwareVersion);
+  Serial.println(firmwareVersionInteger);
   u8g2.print(F("firmware: "));
   u8g2.print(firmwareVersion);
   newLine();
   u8g2.sendBuffer();
+
   // Optional: Set CO2 range 2000ppm or 5000ppm (default) once
   // Serial.print(F("Set range..."));
-  mhz19b.setRange2000ppm();
-  // mhz19b.setRange5000ppm();
+  // mhz19x.setRange2000ppm();
+  mhz19x.setRange5000ppm();
 
   // Optional: Print operating range
-  int range = mhz19b.getRange();
+  int range = mhz19x.getRange();
   Serial.print(F("  Range: "));
   Serial.print(range);
   Serial.println(F("ppm"));
@@ -580,10 +568,10 @@ void setupMhz19b()
 
   // Optional: Set automatic calibration on (true) or off (false) once
   // Serial.print(F("Set auto calibrate..."));
-  mhz19b.setAutoCalibration(true);
+  mhz19x.setAutoCalibration(true);
 
   // Optional: Print Automatic Baseline Calibration status
-  int8_t autoCalibration = mhz19b.getAutoCalibration();
+  int8_t autoCalibration = mhz19x.getAutoCalibration();
   Serial.print(F("  Auto calibrate: "));
   Serial.println(autoCalibration ? F("on") : F("off"));
   u8g2.print(F("auto cal: "));
@@ -591,7 +579,22 @@ void setupMhz19b()
   newLine();
   u8g2.sendBuffer();
 
-  delay(2000);
+  // Sensor requires 3 minutes warming-up after power-on
+  u8g2.print(F("warming up..."));
+  newLine();
+  u8g2.sendBuffer();
+  printDotTicker.attach(15, printDot);
+  setLed(yellow, ledOn);
+  printDot();
+  while (mhz19x.isWarmingUp())
+  {
+    delay(100);
+  };
+  setLed(yellow, ledOff);
+  ledTicker.detach();
+  printDotTicker.detach();
+  u8g2.print(F("...ok"));
+  u8g2.sendBuffer();
 }
 
 void printErrorCode(int16_t result)
